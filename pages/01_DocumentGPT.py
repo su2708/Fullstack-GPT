@@ -17,9 +17,13 @@ st.markdown(
     Welcome!
     
     Use this chatbot to ask questions to an AI about your files!
+    
+    Upload your files on the sidebar.
     """
 )
 
+# 같은 file에 대해 embed_file()을 실행했었다면 cache에서 결과를 바로 반환하는 decorator
+@st.cache_data(show_spinner="Embedding file...")
 def embed_file(file):
     file_content = file.read()
     file_path = f"./.cache/files/{file.name}"
@@ -52,9 +56,34 @@ def embed_file(file):
     
     return retriever
 
-file = st.file_uploader("Upload a .txt .pdf or .docx file", type=["pdf", "txt", "docx"])
+def send_message(message, role, save=True):
+    with st.chat_message(role):
+        st.markdown(message)
+    if save:
+        st.session_state["messages"].append({"message": message, "role": role})
+        
+# 채팅 기록을 채팅 화면에 보여주는 함수
+def paint_history():
+    for message in st.session_state["messages"]:
+        send_message(
+            message["message"],
+            message["role"],
+            save=False,
+        )
+
+# 사이드바에서 파일 업로드
+with st.sidebar:
+    file = st.file_uploader("Upload a .txt .pdf or .docx file", type=["pdf", "txt", "docx"])
 
 if file:
     retriever = embed_file(file)
-    s = retriever.invoke("winston")
-    s
+    
+    send_message("I'm ready! Ask away!","ai", save=False)
+    paint_history()
+    message = st.chat_input("Ask anything about your file...")
+    
+    if message:
+        send_message(message, "human")
+        send_message("lalala", "ai")
+else:
+    st.session_state["messages"] = []
