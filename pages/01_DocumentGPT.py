@@ -26,9 +26,10 @@ st.markdown(
     """
 )
 
+# llm의 streaming 응답을 표시하기 위한 callback handler
 class ChatCallbackHandler(BaseCallbackHandler):
     def __init__(self, *args, **kwargs):
-        self.message = ""
+        self.message = ""  # 빈 message 문자열 생성
     
     def on_llm_start(self, *args, **kwargs):
         self.message_box = st.empty()
@@ -40,7 +41,7 @@ class ChatCallbackHandler(BaseCallbackHandler):
         self.message += token
         self.message_box.markdown(self.message)
 
-llm = ChatOpenAI(temperature=0.1, streaming=True, callbacks=[ChatCallbackHandler(),])
+llm = ChatOpenAI(temperature=0.1, streaming=True, callbacks=[ChatCallbackHandler()])
 
 # 같은 file에 대해 embed_file()을 실행했었다면 cache에서 결과를 바로 반환하는 decorator
 @st.cache_data(show_spinner="Embedding file...")
@@ -96,6 +97,7 @@ def paint_history():
             save=False,
         )
 
+# docs를 이중 줄바꿈으로 구분된 하나의 문자열로 반환하는 함수
 def format_docs(docs):
     return "\n\n".join(document.page_content for document in docs)
 
@@ -132,7 +134,7 @@ if file:
         } | prompt | llm
 
         with st.chat_message("ai"):
-            response = chain.invoke(message)
+            chain.invoke(message)
 
 else:
     st.session_state["messages"] = []
