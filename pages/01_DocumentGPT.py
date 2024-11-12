@@ -1,9 +1,12 @@
-import streamlit as st
+from langchain.prompts import ChatPromptTemplate
 from langchain.document_loaders import UnstructuredFileLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.embeddings import OpenAIEmbeddings, CacheBackedEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.storage import LocalFileStore
+from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
+from langchain.chat_models import ChatOpenAI
+import streamlit as st
 
 st.set_page_config(
     page_title="DocumentGPT",
@@ -21,6 +24,8 @@ st.markdown(
     Upload your files on the sidebar.
     """
 )
+
+llm = ChatOpenAI(temperature=0.1)
 
 # 같은 file에 대해 embed_file()을 실행했었다면 cache에서 결과를 바로 반환하는 decorator
 @st.cache_data(show_spinner="Embedding file...")
@@ -70,6 +75,21 @@ def paint_history():
             message["role"],
             save=False,
         )
+        
+def format_docs(docs):
+    return "\n\n".join(document.page_content for document in docs)
+
+prompt = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        """
+        Answer the question using ONLY the following context. If you don't know the answer, just say you don't know. DON'T make anything up.
+        
+        Context: {context}
+        """,
+    ),
+    ("human", "{question}"),
+])
 
 # 사이드바에서 파일 업로드
 with st.sidebar:
@@ -84,6 +104,15 @@ if file:
     
     if message:
         send_message(message, "human")
-        send_message("lalala", "ai")
+
+        # chain_type = stuff
+        chain = {
+            "context": retriever | RunnableLambda(format_docs),
+            "question": RunnablePassthrough()
+        } | prompt | llm
+        
+        response = chain.invoke(message)
+        send_message(response.content, "ai")
+        
 else:
     st.session_state["messages"] = []
