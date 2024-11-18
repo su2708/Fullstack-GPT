@@ -27,6 +27,14 @@ st.markdown(
     """
 )
 
+# 사이드바에서 파일 업로드
+with st.sidebar:
+    file = st.file_uploader("Upload a .txt .pdf or .docx file", type=["pdf", "txt", "docx"])
+    
+# 사이드바에서 Ollama 모델 선택
+with st.sidebar:
+    model = st.selectbox("Choose your model", ("mistral:latest", "llama3.2:latest"))
+
 # llm의 streaming 응답을 표시하기 위한 callback handler
 class ChatCallbackHandler(BaseCallbackHandler):
     def __init__(self, *args, **kwargs):
@@ -43,7 +51,7 @@ class ChatCallbackHandler(BaseCallbackHandler):
         self.message_box.markdown(self.message)
 
 llm = ChatOllama(
-    model='mistral',
+    model=model,
     temperature=0.1,
     streaming=True,
     callbacks=[
@@ -72,7 +80,7 @@ def embed_file(file):
     docs = loader.load_and_split(text_splitter=splitter)
 
     embeddings = OllamaEmbeddings(
-        model='mistral'
+        model=model
     )
 
     # 중복 요청 시 캐시된 결과를 반환
@@ -122,10 +130,6 @@ prompt = ChatPromptTemplate.from_messages([
     ),
     ("human", "{question}"),
 ])
-
-# 사이드바에서 파일 업로드
-with st.sidebar:
-    file = st.file_uploader("Upload a .txt .pdf or .docx file", type=["pdf", "txt", "docx"])
 
 if file:
     retriever = embed_file(file)
