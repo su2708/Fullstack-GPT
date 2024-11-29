@@ -1,13 +1,21 @@
 from langchain.prompts import ChatPromptTemplate
-from langchain.document_loaders import UnstructuredFileLoader
+from langchain_unstructured import UnstructuredLoader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings, CacheBackedEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings
+from langchain.embeddings import CacheBackedEmbeddings
+from langchain_community.vectorstores import FAISS
 from langchain.storage import LocalFileStore
 from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
-from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.callbacks.base import BaseCallbackHandler
+from dotenv import load_dotenv
 import streamlit as st
+import os
+
+# openai api key setting
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 st.set_page_config(
     page_title="DocumentGPT",
@@ -41,10 +49,15 @@ class ChatCallbackHandler(BaseCallbackHandler):
         self.message += token
         self.message_box.markdown(self.message)
 
-llm = ChatOpenAI(temperature=0.1, streaming=True, callbacks=[ChatCallbackHandler()])
+llm = ChatOpenAI(
+    temperature=0.1,
+    api_key=OPENAI_API_KEY,
+    streaming=True,
+    callbacks=[ChatCallbackHandler()]
+)
 
 # 같은 file에 대해 embed_file()을 실행했었다면 cache에서 결과를 바로 반환하는 decorator
-@st.cache_data(show_spinner="Embedding file...")
+@st.cache_resource(show_spinner="Embedding file...")
 def embed_file(file):
     file_content = file.read()
     file_path = f"./.cache/files/{file.name}"
@@ -59,9 +72,9 @@ def embed_file(file):
         chunk_overlap=100,
     )
 
-    loader = UnstructuredFileLoader(file_path)
+    loader = UnstructuredLoader(file_path)
 
-    docs = loader.load_and_split(text_splitter=splitter)
+    docs = splitter.split_documents(loader.load())
 
     embeddings = OpenAIEmbeddings()
 

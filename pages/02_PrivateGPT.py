@@ -1,12 +1,12 @@
-from langchain_community.document_loaders import UnstructuredFileLoader
-from langchain_community.embeddings import OllamaEmbeddings
-from langchain_community.vectorstores import FAISS
 from langchain.prompts import ChatPromptTemplate
+from langchain_unstructured import UnstructuredLoader
 from langchain.text_splitter import CharacterTextSplitter
+from langchain_ollama import OllamaEmbeddings
 from langchain.embeddings import CacheBackedEmbeddings
+from langchain_community.vectorstores import FAISS
 from langchain.storage import LocalFileStore
 from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
-from langchain_ollama import ChatOllama
+from langchain_ollama.chat_models import ChatOllama
 from langchain.callbacks.base import BaseCallbackHandler
 import streamlit as st
 
@@ -75,9 +75,9 @@ def embed_file(file):
         chunk_overlap=100,
     )
 
-    loader = UnstructuredFileLoader(file_path)
+    loader = UnstructuredLoader(file_path)
 
-    docs = loader.load_and_split(text_splitter=splitter)
+    docs = splitter.split_documents(loader.load())
 
     embeddings = OllamaEmbeddings(
         model=model
