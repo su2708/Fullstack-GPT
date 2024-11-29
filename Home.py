@@ -21,9 +21,3 @@ st.markdown(
     - [ ] [InvestorGPT](/InvestorGPT)
     """
 )
-
-
-_ = """
-Home.py 실행 시 아래 커맨드 복붙
-"D:\Anaconda3_envs\Fullstack-GPT\python.exe" -m streamlit run Home.py
-"""
