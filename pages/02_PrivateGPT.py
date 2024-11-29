@@ -1,12 +1,12 @@
 from langchain.prompts import ChatPromptTemplate
 from langchain_unstructured import UnstructuredLoader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_ollama import OllamaEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings
 from langchain.embeddings import CacheBackedEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.storage import LocalFileStore
 from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
-from langchain_ollama.chat_models import ChatOllama
+from langchain_community.llms.ollama import Ollama
 from langchain.callbacks.base import BaseCallbackHandler
 import streamlit as st
 
@@ -50,17 +50,16 @@ class ChatCallbackHandler(BaseCallbackHandler):
         self.message += token
         self.message_box.markdown(self.message)
 
-llm = ChatOllama(
+llm = Ollama(
     model=model,
     temperature=0.1,
-    streaming=True,
     callbacks=[
         ChatCallbackHandler()
     ],
 )
 
 # 같은 file에 대해 embed_file()을 실행했었다면 cache에서 결과를 바로 반환하는 decorator
-@st.cache_data(show_spinner="Embedding file...")
+@st.cache_resource(show_spinner="Embedding file...")
 def embed_file(file):
     file_content = file.read()
     file_path = f"./.cache/private_files/{file.name}"
