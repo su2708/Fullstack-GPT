@@ -193,7 +193,7 @@ formatting_prompt = ChatPromptTemplate.from_messages([
 
 formatting_chain = formatting_prompt | llm
 
-@st.cache_resource(show_spinner="Loading file...")
+@st.cache_data(show_spinner="Loading file...")
 def split_file(file):
     file_content = file.read()
     file_path = f"./.cache/quiz_files/{file.name}"
@@ -206,6 +206,17 @@ def split_file(file):
     )
     loader = UnstructuredLoader(file_path)
     docs = splitter.split_documents(loader.load())
+    return docs
+
+@st.cache_data(show_spinner="Making quiz...")
+def run_quiz_chain(_docs, topic):
+    chain = {"context": questions_chain} | formatting_chain | output_parser
+    return chain.invoke(_docs)
+
+@st.cache_data(show_spinner="Searching Wikipedia...")
+def wiki_search(term):
+    retriever = WikipediaRetriever(top_k_results=5)
+    docs = retriever.invoke(term)
     return docs
 
 with st.sidebar:    
@@ -224,9 +235,7 @@ with st.sidebar:
     else:
         topic = st.text_input("Search Wikipedia...")
         if topic:
-            retriever = WikipediaRetriever(top_k_results=5)
-            with st.status("Searching Wikipedia..."):
-                docs = retriever.invoke(topic)
+            docs = wiki_search(topic)
 
 
 if not docs:
@@ -243,6 +252,5 @@ else:
     start = st.button("Generate Quiz")
     
     if start:
-        chain = {"context": questions_chain} | formatting_chain | output_parser
-        response = chain.invoke(docs)
+        response = run_quiz_chain(docs, topic if topic else file.name)
         st.write(response)
