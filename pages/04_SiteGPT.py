@@ -1,8 +1,30 @@
-from langchain_community.document_loaders import AsyncChromiumLoader
-from langchain_community.document_transformers import Html2TextTransformer
+from langchain_community.document_loaders import SitemapLoader
+from fake_useragent import UserAgent
 import streamlit as st
 import asyncio
 import sys
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+
+# Initialize a UserAgent object
+ua = UserAgent()
+
+@st.cache_data(show_spinner="Loading website...")
+def load_website(url):
+    try:
+        loader = SitemapLoader(url)
+        loader.requests_per_second = 3
+        
+        # Set a realistic user agent
+        loader.headers = {'User-Agent': ua.random}
+        docs = loader.load()
+        logging.debug(f"Loaded documents: {docs}")
+        return docs
+    except Exception as e:
+        logging.error(f"Error loading sitemap: {e}")
+        return []
 
 st.set_page_config(
     page_title="SiteGPT",
@@ -20,8 +42,6 @@ st.markdown(
     Start by writing the URL of the website on the sidebar.
     """
 )
-
-html2text_transformer = Html2TextTransformer()
 
 if "win32" in sys.platform:
     # Windows specific event-loop policy & cmd
@@ -42,7 +62,12 @@ with st.sidebar:
     )
 
 if url:
-    loader = AsyncChromiumLoader([url])
-    docs = loader.load()
-    transformed = html2text_transformer.transform_documents(docs)
-    st.write(transformed)
+    if ".xml" not in url:
+        with st.sidebar:
+            st.error("Please write down a Sitemap URL.")
+    else:
+        docs = load_website(url)
+        if docs:
+            st.write(docs)
+        else:
+            st.error("Failed to load documents from the sitemap. Please check the URL and try again.")
