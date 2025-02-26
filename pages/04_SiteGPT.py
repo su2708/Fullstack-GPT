@@ -17,6 +17,10 @@ logging.basicConfig(level=logging.DEBUG)
 # Initialize a UserAgent object
 ua = UserAgent()
 
+llm = ChatOpenAI(
+    temperature=0.1,
+)
+
 answers_prompt = ChatPromptTemplate.from_template("""
     Using ONLY the following context answer the user's question. If you can't just say you don't know, Don't make anything up.
     
@@ -43,22 +47,51 @@ answers_prompt = ChatPromptTemplate.from_template("""
     Question: {question}
 """)
 
-llm = ChatOpenAI(
-    temperature=0.1,
-)
-
 def get_answers(inputs):
     docs = inputs['docs']
     question = inputs['question']
     answers_chain = answers_prompt | llm
-    answers = []
-    for doc in docs:
-        result = answers_chain.invoke({
-            "context": doc.page_content,
-            "question": question
-        })
-        answers.append(result.content)
-    st.write(answers)
+    return {
+        "question": question,
+        "answers": [
+            {
+                "answer": answers_chain.invoke(
+                    {"context": doc.page_content, "question": question}
+                ).content,
+                "source": doc.metadata["source"],
+                "date": doc.metadata["lastmod"],
+            } for doc in docs
+        ],
+    }
+
+choose_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """
+            Use ONLY the following pre-existing answers to answer the user's question.
+            
+            Use the answers that have the highest score (more helpful) and favor the most recent ones.
+            
+            Return the sources of the answers as they are. Do not change them.
+            
+            Answers: {answers}
+            """
+        ),
+        ("human", "{question}"),
+    ]
+)
+
+def choose_answer(inputs):
+    answers = inputs['answers']
+    question = inputs['question']
+    choose_chain = choose_prompt | llm
+    condensed = "\n\n".join(f"Answer:{answer['answer']}\nSource:{answer['source']}\nDate:{answer['date']}\n" for answer in answers)
+    
+    return choose_chain.invoke({
+        "question": question,
+        "answers": condensed
+    })
 
 def parse_page(soup):
     header = soup.find("header")
@@ -138,12 +171,14 @@ if url:
         retriever = load_website(url)
         if retriever:
             docs = retriever.invoke("What is the price of GPT-4?")
-            
-            chain = {
-                "docs": retriever, 
-                "question": RunnablePassthrough()
-            } | RunnableLambda(get_answers)
-            
-            chain.invoke("Who will use zep?")
+            query = st.text_input("Ask a question to the website")
+            if query:
+                chain = {
+                    "docs": retriever, 
+                    "question": RunnablePassthrough()
+                } | RunnableLambda(get_answers) | RunnableLambda(choose_answer)
+                
+                result = chain.invoke(query)
+                st.write(result.content.replace("$", "\$"))
         else:
             st.error("Failed to load documents from the sitemap. Please check the URL and try again.")
