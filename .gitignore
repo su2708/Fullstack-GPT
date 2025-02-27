@@ -6,3 +6,4 @@ files/gpt4all
 *.mp3
 files/*.mp3
 files/*.mp4
+*.txt
