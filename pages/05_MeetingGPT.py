@@ -7,7 +7,6 @@ import os
 from pydub import AudioSegment
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.prompts import ChatPromptTemplate
-from langchain_community.document_loaders import TextLoader
 from langchain_unstructured import UnstructuredLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import StrOutputParser
@@ -35,7 +34,23 @@ llm = ChatOpenAI(
     temperature=0.1,
 )
 
+splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+    chunk_size=800,
+    chunk_overlap=100,
+)
+
 has_transcript = os.path.exists("./.cache/itsub.txt")
+
+@st.cache_resource()
+def embed_file(file_path):
+    cache_dir =  LocalFileStore(f"./.cache/meetinggpt/embeddings/{video.name}")
+    loader = UnstructuredLoader(file_path)
+    docs = loader.load_and_split(text_splitter=splitter)
+    embeddings = OpenAIEmbeddings()
+    cached_embeddings = CacheBackedEmbeddings.from_bytes_store(embeddings, cache_dir)
+    vectorstore = FAISS.from_documents(docs, cached_embeddings)
+    retriever = vectorstore.as_retriever()
+    return retriever
 
 @st.cache_resource()
 def extract_audio_from_video(video_path):
@@ -73,6 +88,9 @@ def transcribe_chunks(chunk_folder, destination):
                 language="ko"
             )
             text_file.write(transcript.text)
+
+def format_docs(docs):
+    return "\n\n".join(document.page_content for document in docs)
 
 with st.sidebar:
     video = st.file_uploader("Video", type=["mp4", "avi", "mkv", "mov"])
@@ -113,10 +131,6 @@ if video:
         
         if start:
             loader = UnstructuredLoader(transcript_path)
-            splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-                chunk_size=800,
-                chunk_overlap=100,
-            )
             docs = loader.load_and_split(text_splitter=splitter)
             
             first_summary_prompt = ChatPromptTemplate.from_template(
@@ -140,11 +154,13 @@ if video:
                 
                 We have the opportunity to refine the existing summary (only if needed) with some more context below.
                 -----------
-                {text}
+                {context}
                 -----------
                 Given the new context, refine the original summary.
                 
                 If the context isn't useful, RETURN the original summary.
+                
+                The summary should be Korean.
                 """
             )
             
@@ -155,6 +171,38 @@ if video:
                     status.update(label=f"Processing document {i+1}/{len(docs)-1}")
                     summary = refine_chain.invoke({
                         "existing_summary": summary,
-                        "text": doc.page_content,
+                        "context": doc.page_content,
                     })
             st.write(summary)
+    
+    with qa_tab:
+        retriever = embed_file(transcript_path)
+        question = st.text_input("Enter your question about the video.")
+        docs = retriever.invoke(question)
+        
+        answer_prompt = ChatPromptTemplate.from_messages([
+            (
+                "system",
+                """
+                Your job is to answer the user's question using the given context.
+                The context is a transcript from a video.
+                Answer the question using ONLY the following context.
+                If you don't know the answer just say you don't know.
+                DON'T make anything up.
+                
+                Context: {context}
+                """
+            ),
+            ("human", "{question}")
+        ])
+        
+        answer_chain = (
+            {
+                "context": retriever | RunnableLambda(format_docs),
+                "question": RunnablePassthrough(),
+            } | answer_prompt | llm | StrOutputParser()
+        )
+        
+        answer = answer_chain.invoke(question)
+        
+        st.write(answer)
