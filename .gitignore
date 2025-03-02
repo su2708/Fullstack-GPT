@@ -8,3 +8,4 @@ files/*.mp3
 files/*.mp4
 *.txt
 *.sqlite
+__pycache__
