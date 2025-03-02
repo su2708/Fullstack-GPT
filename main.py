@@ -1,5 +1,5 @@
 from typing import Type
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
 
 app = FastAPI(
@@ -19,7 +19,8 @@ class Quote(BaseModel):
     response_description="A Quote object that contains the quote said by Nicolacus Maximus and the date when the quote was said.",
     response_model=Quote
 )
-def get_quote():
+def get_quote(request: Request):
+    print(request.headers)
     return {
         "quote": "Life is short so eat it all.",
         "year": 1950,
