@@ -7,3 +7,4 @@ files/gpt4all
 files/*.mp3
 files/*.mp4
 *.txt
+*.sqlite
